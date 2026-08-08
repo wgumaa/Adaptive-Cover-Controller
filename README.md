@@ -39,12 +39,27 @@ have independent protection zones, schedules and behaviour.
 
 ## Installation
 
-1. Download or clone this repository.
-2. Copy `blueprint/adaptive_cover_controller.yaml` to:
+### Option 1 – Home Assistant (Recommended)
+
+Click the button below to import the blueprint directly into your Home Assistant instance.
+
+[![Open your Home Assistant instance and import this blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/wgumaa/Adaptive-Cover-Controller/main/blueprint/adaptive_cover_controller.yaml)
+
+### Option 2 – Manual Installation
+
+1. Download `adaptive_cover_controller.yaml` from the `blueprint` folder.
+2. Copy it to:
+
+   ```
+   config/blueprints/automation/
+   ```
+
+3. Reload Blueprints in Home Assistant.
+4. Create a new automation using **Adaptive Cover Controller**.
 
 ### Controller Mode Helper
 
-Create an **Input Select** helper with the following options:
+Create one **Input Select** helper for each cover with the following options:
 
 - `normal`
 - `automation`
