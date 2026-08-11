@@ -63,7 +63,7 @@ protection zones for every room in your home.
 
 Click the button below to import the blueprint directly into Home Assistant.
 
-**➡️ (Insert My Home Assistant import badge here)**
+[![Open your Home Assistant instance and import this blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/wgumaa/Adaptive-Cover-Controller/main/blueprint/adaptive_cover_controller.yaml)
 
 ---
 
