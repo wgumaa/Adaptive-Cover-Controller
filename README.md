@@ -46,13 +46,13 @@ protection zones for every room in your home.
 ## Main Configuration
 
 <p align="center">
-<img src="images/main_configuration.png" width="900">
+<img src="images/blueprint_configuration1.png" width="900">
 </p>
 
 ## Optional Features
 
 <p align="center">
-<img src="images/optional_features.png" width="900">
+<img src="images/blueprint_configuration2.png" width="900">
 </p>
 
 ---
