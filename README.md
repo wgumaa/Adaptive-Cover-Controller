@@ -1,87 +1,113 @@
+<p align="center">
+  <img src="images/banner.png" alt="Adaptive Cover Controller">
+</p>
+
+<p align="center">
+  <img src="images/logo.png" width="140" alt="Adaptive Cover Controller Logo">
+</p>
+
 # Adaptive Cover Controller
 
-**Home Assistant:** 2025.7 or newer
+<p align="center">
 
-An adaptive Home Assistant blueprint that automatically protects curtains,
-blinds and shutters from direct sunlight using the sun's position.
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.7%2B-41BDF5?logo=homeassistant&logoColor=white)
+![Blueprint](https://img.shields.io/badge/Blueprint-Automation-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Version](https://img.shields.io/badge/Version-v2.0-orange)
 
-The controller uses the sun's azimuth and elevation to determine when a cover
-should move to a protection position. Optional validation modules allow the
-decision to be refined using weather conditions, cloud cover, occupancy and
-time-based schedules.
+</p>
 
-Each cover is configured as its own automation, allowing different rooms to
-have independent protection zones, schedules and behaviour.
+An intelligent Home Assistant blueprint that automatically protects curtains,
+blinds and shutters from direct sunlight.
 
-## Blueprint
+Using the sun's real-time azimuth and elevation, the controller decides when
+protection is required. Optional weather, cloud cover, occupancy and schedule
+validation ensure covers only move when it actually makes sense.
 
-### Main Configuration
+Each cover runs as its own automation, making it easy to create independent
+protection zones for every room in your home.
 
-![Main Configuration](images/blueprint_configuration1.png)
+---
 
-### Optional Features
+# ✨ Highlights
 
-![Optional Features](images/blueprint_configuration2.png)
+- ☀️ Sun position aware (azimuth & elevation)
+- 🌤 Optional weather validation
+- ☁️ Cloud cover validation with hysteresis
+- 👤 Occupancy aware
+- 🌙 Night lock
+- 🕒 Scheduled morning opening
+- ✋ Manual override detection
+- 🔄 Automatic recovery after manual override
+- 🚀 Startup recovery after Home Assistant restart
+- ⏱ Periodic synchronization
+- 🪟 Supports curtains, blinds and shutters
 
-## Features
+---
 
-- Sun azimuth and elevation protection
-- Optional weather validation
-- Optional cloud cover validation with hysteresis
-- Optional occupancy validation
-- Night lock
-- Scheduled morning opening
-- Manual override detection
-- Automatic recovery after manual override
-- Startup recovery after Home Assistant restart
-- Periodic recovery to protect against missed events
-- Supports curtains, blinds and shutters
+# 📸 Blueprint
 
-## Installation
+## Main Configuration
 
-### Option 1 – Home Assistant (Recommended)
+<p align="center">
+<img src="images/main_configuration.png" width="900">
+</p>
 
-Click the button below to import the blueprint directly into your Home Assistant instance.
+## Optional Features
 
-[![Open your Home Assistant instance and import this blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/wgumaa/Adaptive-Cover-Controller/main/blueprint/adaptive_cover_controller.yaml)
+<p align="center">
+<img src="images/optional_features.png" width="900">
+</p>
 
-### Option 2 – Manual Installation
+---
 
-1. Download `adaptive_cover_controller.yaml` from the `blueprint` folder.
-2. Copy it to:
+# 🚀 Installation
 
-   ```
-   config/blueprints/automation/
-   ```
+## Option 1 — Import into Home Assistant (Recommended)
 
-3. Reload Blueprints in Home Assistant.
+Click the button below to import the blueprint directly into Home Assistant.
+
+**➡️ (Insert My Home Assistant import badge here)**
+
+---
+
+## Option 2 — Manual Installation
+
+1. Download
+
+```
+adaptive_cover_controller.yaml
+```
+
+from the **blueprint** folder.
+
+2. Copy it to
+
+```
+config/blueprints/automation/
+```
+
+3. Reload Blueprints.
+
 4. Create a new automation using **Adaptive Cover Controller**.
 
-### Controller Mode Helper
+---
 
-Create one **Input Select** helper for each cover with the following options:
+# 📋 Requirements
 
-- `normal`
-- `automation`
-- `manual`
+- Home Assistant **2025.7** or newer
+- One cover entity
+- One Controller Mode helper per cover (when using Manual Override)
 
-Assign this helper to the blueprint when creating the automation.
+---
 
-> **Note:** Create a separate helper for every cover controlled by the blueprint.
+# ⚙️ Configuration
 
-## Requirements
+Each automation controls **one cover**.
 
-- Home Assistant 2025.7 or newer
-- A cover entity (curtain, blind or shutter)
-- One Input Select helper per cover (if Manual Override is enabled)
+## Required
 
-## Configuration
-
-Each automation controls a single cover.
-
-### Required
-
-Configure the following:
+Configure:
 
 - Cover entity
 - Controller Mode helper
@@ -89,21 +115,34 @@ Configure the following:
 - Sun azimuth end
 - Protection position
 
-### Required Helper
+---
 
-Create one **Input Select** helper for each cover with the following options:
+## Controller Mode Helper
 
-- `normal`
-- `automation`
-- `manual`
+Create one **Input Select** helper for every cover with these options:
 
-This helper is used by the blueprint to track whether the cover is operating normally, is being moved by the automation, or has been manually overridden.
+```
+normal
+automation
+manual
+```
 
-> **Important:** Do not reuse the same helper for multiple covers. Each cover must have its own Controller Mode helper.
+The helper allows the blueprint to distinguish between:
 
-### Optional Features
+- Normal operation
+- Automation-controlled movement
+- Manual user override
 
-The following modules can be enabled independently:
+> **Important**
+>
+> Every cover requires its own helper.
+> Do not share helpers between automations.
+
+---
+
+## Optional Modules
+
+Enable only the features you need.
 
 - Weather validation
 - Cloud cover validation
@@ -112,50 +151,142 @@ The following modules can be enabled independently:
 - Night lock
 - Scheduled morning opening
 
-This allows each cover to be configured differently depending on its location and requirements.
+Each cover can have completely different settings.
 
-## Manual Override
+---
 
-The blueprint automatically detects when a cover is moved manually.
+# ☀️ Why Adaptive?
 
-When a manual movement is detected:
+Unlike simple time-based automations, Adaptive Cover Controller continuously
+evaluates real-world conditions before moving a cover.
 
-- The controller enters **Manual** mode.
-- Automatic movement is suspended.
-- The cover remains under user control.
+This greatly reduces unnecessary movement while still protecting rooms from
+direct sunlight whenever it is actually needed.
 
-Automatic operation resumes only after the cover is manually returned to the position currently requested by the controller.
+---
 
-This prevents the automation from repeatedly fighting manual adjustments while still allowing it to resume normal operation when appropriate.
+# 🧠 Manual Override
 
-## How It Works
+When a user manually moves a cover:
 
-The controller continuously evaluates whether the cover should be protecting the room from direct sunlight.
+1. Manual mode is detected automatically.
+2. Automation pauses immediately.
+3. The user has full control.
 
-The decision is based on:
+Automation resumes only after the cover is manually returned to the position
+currently requested by the controller.
+
+This prevents the automation from fighting manual adjustments.
+
+---
+
+# 🔄 How It Works
+
+The controller continuously evaluates:
 
 1. Sun azimuth
 2. Sun elevation
-3. Optional weather validation
-4. Optional cloud cover validation
-5. Optional occupancy validation
-6. Night lock and opening schedule
+3. Weather (optional)
+4. Cloud cover (optional)
+5. Occupancy (optional)
+6. Night lock
+7. Opening schedule
 
-If all enabled conditions are satisfied, the cover moves to the configured protection position.
+If all enabled conditions are satisfied, the cover moves to its protection
+position.
 
-If protection is no longer required, the controller automatically returns the cover to its normal position.
+When protection is no longer required, the cover automatically returns to its
+normal position.
 
-To prevent unnecessary commands, movement is only requested when the cover is idle and not already at the desired position. The controller also performs a periodic check and recovers automatically after Home Assistant restarts, ensuring the cover remains synchronized even if an event is missed.
+To avoid unnecessary commands, movement is requested only when the cover is
+idle and not already at the requested position.
 
-## Example Use Cases
+Automatic recovery also occurs after:
 
-- Close east-facing bedroom curtains during the morning sun.
-- Protect west-facing living room blinds during the afternoon.
-- Keep office curtains closed only while someone is home.
-- Ignore protection when heavy cloud cover is present.
-- Automatically reopen covers the following morning.
-- Allow manual control at any time without the automation fighting the user.
+- Home Assistant restarts
+- Missed state changes
+- Periodic synchronization
 
-## License
+---
 
-This project is released under the MIT License.
+# 💡 Example Use Cases
+
+### Bedroom
+
+- Morning sun protection
+- Night lock enabled
+
+### Living Room
+
+- Afternoon protection
+- Cloud cover validation enabled
+
+### Office
+
+- Occupancy validation enabled
+- Manual override enabled
+
+### Conservatory
+
+- Maximum sun protection
+- Weather disabled
+
+---
+
+# ❓ Frequently Asked Questions
+
+### Can I use multiple covers?
+
+Yes.
+
+Create one automation per cover.
+
+---
+
+### Do I need a helper?
+
+Only if you want Manual Override detection.
+
+---
+
+### Can every room have different settings?
+
+Yes.
+
+Each automation is completely independent.
+
+---
+
+### Does it work with shutters?
+
+Yes.
+
+It supports:
+
+- Curtains
+- Roller blinds
+- Venetian blinds
+- Shutters
+
+---
+
+### Does it work after Home Assistant restarts?
+
+Yes.
+
+The blueprint automatically restores its state and re-evaluates whether
+protection is required.
+
+---
+
+# ❤️ Contributing
+
+Bug reports, suggestions and improvements are always welcome.
+
+If you find this blueprint useful, please consider starring the repository.
+
+---
+
+# 📄 License
+
+Released under the **MIT License**.
