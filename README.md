@@ -115,7 +115,7 @@ Configure:
 
 ## Controller Mode Helper
 
-Create one **Input Select** helper for every cover with these options:
+Create one **Dropdown** helper for every cover with these options:
 
 ```
 normal
