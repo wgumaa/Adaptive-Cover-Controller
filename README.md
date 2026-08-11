@@ -2,7 +2,11 @@
   <img src="images/banner.png" alt="Adaptive Cover Controller">
 </p>
 
-# Adaptive Cover Controller
+<h1 align="center">Adaptive Cover Controller</h1>
+
+<p align="center">
+An intelligent Home Assistant blueprint that automatically protects curtains, blinds and shutters from direct sunlight using the sun's position and optional environmental validation.
+</p>
 
 <p align="center">
 
@@ -13,31 +17,50 @@
 
 </p>
 
-An intelligent Home Assistant blueprint that automatically protects curtains,
-blinds and shutters from direct sunlight.
+---
 
-Using the sun's real-time azimuth and elevation, the controller decides when
-protection is required. Optional weather, cloud cover, occupancy and schedule
-validation ensure covers only move when it actually makes sense.
+## 🚀 Quick Start
 
-Each cover runs as its own automation, making it easy to create independent
-protection zones for every room in your home.
+Get up and running in just a few minutes.
+
+1. Import the blueprint into Home Assistant.
+2. Create one automation for each cover.
+3. Configure the sun protection zone.
+4. (Optional) Enable weather, cloud cover, occupancy or scheduling.
+5. Sit back and let Adaptive Cover Controller protect your home.
 
 ---
 
-# ✨ Highlights
+## 🎯 Why You'll Love It
 
-- ☀️ Sun position aware (azimuth & elevation)
-- 🌤 Optional weather validation
-- ☁️ Cloud cover validation with hysteresis
-- 👤 Occupancy aware
+Unlike simple time-based automations, Adaptive Cover Controller continuously evaluates real-world conditions before moving a cover.
+
+It intelligently combines:
+
+- ☀️ Sun azimuth & elevation
+- 🌤 Weather conditions
+- ☁️ Cloud cover
+- 👤 Occupancy
+- 🕒 Schedules
 - 🌙 Night lock
-- 🕒 Scheduled morning opening
-- ✋ Manual override detection
-- 🔄 Automatic recovery after manual override
-- 🚀 Startup recovery after Home Assistant restart
-- ⏱ Periodic synchronization
-- 🪟 Supports curtains, blinds and shutters
+
+The result is a controller that moves your covers only when protection is genuinely required, reducing unnecessary movement while maintaining comfort throughout the day.
+
+---
+
+## ✨ Highlights
+
+| Feature | Description |
+|----------|-------------|
+| ☀️ Sun Position | Uses the sun's azimuth and elevation for intelligent positioning. |
+| 🌤 Weather Validation | Ignore protection during unsuitable weather conditions. |
+| ☁️ Cloud Cover | Optional hysteresis prevents unnecessary movement. |
+| 👤 Occupancy | Only protect occupied rooms if desired. |
+| 🌙 Night Lock | Prevent automatic opening overnight. |
+| 🕒 Scheduling | Independent weekday and weekend opening times. |
+| ✋ Manual Override | Automatically detects and respects manual movement. |
+| 🔄 Automatic Recovery | Startup and periodic synchronization prevent missed events. |
+| 🪟 Wide Compatibility | Supports curtains, blinds and shutters. |
 
 ---
 
@@ -61,7 +84,7 @@ protection zones for every room in your home.
 
 ## Option 1 — Import into Home Assistant (Recommended)
 
-Click the button below to import the blueprint directly into Home Assistant.
+Import the blueprint directly into your Home Assistant instance.
 
 [![Open your Home Assistant instance and import this blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/wgumaa/Adaptive-Cover-Controller/main/blueprint/adaptive_cover_controller.yaml)
 
@@ -69,17 +92,17 @@ Click the button below to import the blueprint directly into Home Assistant.
 
 ## Option 2 — Manual Installation
 
-1. Download
+1. Download:
 
-```
+```text
 adaptive_cover_controller.yaml
 ```
 
 from the **blueprint** folder.
 
-2. Copy it to
+2. Copy it to:
 
-```
+```text
 config/blueprints/automation/
 ```
 
@@ -92,16 +115,16 @@ config/blueprints/automation/
 # 📋 Requirements
 
 - Home Assistant **2025.7** or newer
-- One cover entity
+- One supported cover entity
 - One Controller Mode helper per cover (when using Manual Override)
 
 ---
 
 # ⚙️ Configuration
 
-Each automation controls **one cover**.
+Each automation controls **one individual cover**, allowing every room to have its own behaviour and protection settings.
 
-## Required
+## Required Settings
 
 Configure:
 
@@ -109,15 +132,17 @@ Configure:
 - Controller Mode helper
 - Sun azimuth start
 - Sun azimuth end
+- Minimum elevation
 - Protection position
+- Normal position
 
 ---
 
 ## Controller Mode Helper
 
-Create one **Dropdown** helper for every cover with these options:
+Create one **Dropdown Helper** for every cover containing:
 
-```
+```text
 normal
 automation
 manual
@@ -127,12 +152,12 @@ The helper allows the blueprint to distinguish between:
 
 - Normal operation
 - Automation-controlled movement
-- Manual user override
+- Manual user control
 
 > **Important**
 >
 > Every cover requires its own helper.
-> Do not share helpers between automations.
+> Do not share helpers between multiple automations.
 
 ---
 
@@ -145,34 +170,25 @@ Enable only the features you need.
 - Occupancy validation
 - Tilt control
 - Night lock
-- Scheduled morning opening
+- Scheduled opening
 
-Each cover can have completely different settings.
-
----
-
-# ☀️ Why Adaptive?
-
-Unlike simple time-based automations, Adaptive Cover Controller continuously
-evaluates real-world conditions before moving a cover.
-
-This greatly reduces unnecessary movement while still protecting rooms from
-direct sunlight whenever it is actually needed.
+Every automation can be configured independently, allowing different rooms to behave differently.
 
 ---
 
 # 🧠 Manual Override
 
-When a user manually moves a cover:
+Adaptive Cover Controller automatically detects when a user manually moves a cover.
 
-1. Manual mode is detected automatically.
-2. Automation pauses immediately.
-3. The user has full control.
+When this happens:
 
-Automation resumes only after the cover is manually returned to the position
-currently requested by the controller.
+1. Manual mode is activated.
+2. Automation immediately pauses.
+3. Full user control is respected.
 
-This prevents the automation from fighting manual adjustments.
+Automation resumes only after the cover has been manually returned to the position currently requested by the controller.
+
+This prevents the automation from repeatedly fighting manual adjustments.
 
 ---
 
@@ -186,83 +202,85 @@ The controller continuously evaluates:
 4. Cloud cover (optional)
 5. Occupancy (optional)
 6. Night lock
-7. Opening schedule
+7. Scheduled opening
 
-If all enabled conditions are satisfied, the cover moves to its protection
-position.
+When every enabled condition is satisfied, the cover moves to the configured protection position.
 
-When protection is no longer required, the cover automatically returns to its
-normal position.
+Once protection is no longer required, the controller automatically returns the cover to its normal position.
 
-To avoid unnecessary commands, movement is requested only when the cover is
-idle and not already at the requested position.
+To minimise unnecessary commands, movement only occurs when the cover is idle and not already at the requested position.
 
 Automatic recovery also occurs after:
 
 - Home Assistant restarts
-- Missed state changes
+- Missed events
 - Periodic synchronization
 
 ---
 
-# 💡 Example Use Cases
+# 🏡 Real World Examples
 
-### Bedroom
+### 🛏 Bedroom
 
 - Morning sun protection
 - Night lock enabled
 
-### Living Room
+### 🛋 Living Room
 
-- Afternoon protection
+- Afternoon sun protection
 - Cloud cover validation enabled
 
-### Office
+### 💻 Home Office
 
 - Occupancy validation enabled
 - Manual override enabled
 
-### Conservatory
+### 🌿 Conservatory
 
 - Maximum sun protection
-- Weather disabled
+- Weather validation disabled
+
+---
+
+# ✅ Compatibility
+
+Adaptive Cover Controller works with most Home Assistant cover entities, including:
+
+- Curtains
+- Roller blinds
+- Venetian blinds
+- Interior shutters
+- Exterior shutters
+
+Supports:
+
+- Open / Close
+- Position control
+- Optional tilt control
 
 ---
 
 # ❓ Frequently Asked Questions
 
-### Can I use multiple covers?
+### Can I control multiple covers?
 
 Yes.
 
-Create one automation per cover.
-
----
-
-### Do I need a helper?
-
-Only if you want Manual Override detection.
+Create one automation for each cover.
 
 ---
 
 ### Can every room have different settings?
 
-Yes.
+Absolutely.
 
 Each automation is completely independent.
 
 ---
 
-### Does it work with shutters?
+### Do I need the Controller Mode helper?
 
-Yes.
-
-It supports:
-
-- Curtains
-- Roller blinds
-- Venetian blinds
-- Shutters
+Only if you enable Manual Override detection.
 
 ---
 
@@ -270,19 +288,42 @@ It supports:
 
 Yes.
 
-The blueprint automatically restores its state and re-evaluates whether
-protection is required.
+The blueprint automatically restores its state and immediately re-evaluates whether protection is required.
 
 ---
 
-# ❤️ Contributing
+### Does it support shutters?
 
-Bug reports, suggestions and improvements are always welcome.
+Yes.
 
-If you find this blueprint useful, please consider starring the repository.
+It supports curtains, blinds and shutters that expose standard Home Assistant cover controls.
+
+---
+
+# ❤️ Support
+
+If you find this blueprint useful, please consider:
+
+⭐ Starring the repository
+
+🐞 Reporting bugs
+
+💡 Suggesting new features
+
+🤝 Contributing improvements
+
+Every contribution helps improve the project for the Home Assistant community.
 
 ---
 
 # 📄 License
 
 Released under the **MIT License**.
+
+---
+
+<p align="center">
+
+Made with ❤️ for the Home Assistant community.
+
+</p>
