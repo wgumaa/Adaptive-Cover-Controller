@@ -2,10 +2,6 @@
   <img src="images/banner.png" alt="Adaptive Cover Controller">
 </p>
 
-<p align="center">
-  <img src="images/logo.png" width="140" alt="Adaptive Cover Controller Logo">
-</p>
-
 # Adaptive Cover Controller
 
 <p align="center">
