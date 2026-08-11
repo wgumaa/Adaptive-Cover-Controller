@@ -183,27 +183,33 @@ This prevents the automation from repeatedly fighting manual adjustments.
 
 # 🔄 How It Works
 
-The controller continuously evaluates:
+Adaptive Cover Controller continuously evaluates the sun's position together with any optional validation modules you've enabled. Covers only move when **all configured conditions are satisfied**, helping to reduce unnecessary movement while maintaining effective protection from direct sunlight.
 
-1. Sun azimuth
-2. Sun elevation
-3. Weather (optional)
-4. Cloud cover (optional)
-5. Occupancy (optional)
-6. Night lock
-7. Scheduled opening
+<p align="center">
+  <img src="images/how-it-works.png" width="1000" alt="Adaptive Cover Controller decision flow">
+</p>
 
-If every enabled condition is satisfied, the cover moves to its configured protection position.
+The controller evaluates the following conditions:
 
-When protection is no longer required, the controller automatically returns the cover to its normal position.
+1. ☀️ Sun azimuth and elevation
+2. 🌤 Weather validation *(optional)*
+3. ☁️ Cloud cover validation *(optional)*
+4. 👤 Occupancy validation *(optional)*
+5. 🌙 Night lock
+6. 🕒 Scheduled opening
+7. 🔄 System state and manual override
 
-To minimise unnecessary commands, movement only occurs when the cover is idle and not already at the requested position.
+If every enabled condition passes, the cover moves to the configured **Protection Position**.
 
-Automatic recovery also occurs after:
+If protection is no longer required, the cover automatically returns to its configured **Normal Position**.
 
-- Home Assistant restarts
-- Missed events
-- Periodic synchronization
+To avoid unnecessary commands, movement only occurs when the cover is idle and not already at the requested position.
+
+The blueprint also automatically recovers after:
+
+- 🚀 Home Assistant restarts
+- 🔄 Missed state changes
+- ⏱ Periodic synchronization
 
 ---
 
