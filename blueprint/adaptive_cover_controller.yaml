@@ -58,17 +58,17 @@ blueprint:
 
 input:
 
-###############################################################################
-# COVER
-###############################################################################
+  ###############################################################################
+  # COVER
+  ###############################################################################
 
-    cover:
-      name: Cover
-      description: Select the curtain, blind or shutter.
-      selector:
-        entity:
-          filter:
-            - domain: cover
+  cover:
+    name: Cover
+    description: Select the curtain, blind or shutter.
+    selector:
+      entity:
+        filter:
+          - domain: cover
 
 ###############################################################################
 # SUN PROTECTION
