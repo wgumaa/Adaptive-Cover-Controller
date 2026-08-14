@@ -14,6 +14,13 @@ Protection is determined using the sun's azimuth and elevation, with optional we
 
 ---
 
+> [!NOTE]
+> **AI-assisted development**
+>
+> This project was developed using AI as an engineering tool - not as a replacement for engineering.
+>
+> AI assisted with brainstorming, code reviews, documentation and iterative refinement, while all architectural decisions, implementation choices and real-world testing were carried out by the project author.
+
 ## Installation
 
 ### Import using My Home Assistant (recommended)
