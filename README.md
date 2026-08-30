@@ -10,7 +10,7 @@
 
 Adaptive Cover Controller is a Home Assistant blueprint for automatically controlling curtains, blinds and shutters based on the sun's position.
 
-Protection is determined using the sun's azimuth and elevation, with optional weather, cloud cover, occupancy and schedule validation. Each cover runs as its own automation and can be configured independently.
+Protection is determined using the sun's azimuth and elevation, with optional weather, effective sky obstruction, occupancy and schedule validation. Each cover runs as its own automation and can be configured independently.
 
 ---
 
@@ -49,13 +49,14 @@ Reload Blueprints and create a new automation using **Adaptive Cover Controller*
 
 - Sun position control using azimuth and elevation
 - Optional weather validation
-- Optional cloud cover validation with hysteresis
+- Optional effective sky obstruction validation with hysteresis — accepts a plain cloud-cover-percentage sensor, or a more sophisticated computed obstruction sensor if you have one
 - Optional occupancy validation
+- Three-tier protection level (FULL / PARTIAL / NONE) — tilt-capable covers can hold position and adjust tilt instead of fully opening on light cloud
+- Adaptive tilt for Venetian blinds, reacting continuously to live sky obstruction
 - Scheduled opening
 - Night lock
-- Manual override detection
+- Manual override detection, with a configurable timeout to automatically resume automatic control
 - Automatic recovery after Home Assistant restarts
-- Tilt support for Venetian blinds
 - Individual configuration for every cover
 
 ---
@@ -73,7 +74,7 @@ The blueprint is organised into the following sections:
 - Manual Override
 - Occupancy
 - Weather Validation
-- Cloud Cover
+- Effective Sky Obstruction
 - Blind Features
 - Advanced
 
@@ -89,6 +90,8 @@ manual
 
 Do not share the same helper between multiple covers.
 
+A manual change is detected automatically and pauses the automation until either the cover is returned to the position the automation would choose, or the configured **Manual override timeout** elapses — whichever comes first. Set the timeout to `0` to disable it and require a matching position to resume automatically.
+
 ---
 
 ## Blueprint
@@ -101,17 +104,21 @@ Do not share the same helper between multiple covers.
 
 ## How It Works
 
-Adaptive Cover Controller continuously evaluates the sun's position together with any enabled validation modules.
+Sun position, weather validation and occupancy validation form a single gate. If any of them fail, the cover fully opens (or stays open) — no further checks are needed.
 
-When all configured conditions are satisfied, the cover moves to the configured protection position.
+Once the gate passes, effective sky obstruction sets the protection level:
 
-When protection is no longer required, the cover automatically returns to its normal position.
+- **FULL** — obstruction is low enough that full sun protection is needed. The cover moves to its protection position (and, for tilt-capable covers, its protection tilt).
+- **PARTIAL** — tilt-capable covers only. Obstruction has risen, but the sun is still in the configured window, so the cover stays in position rather than fully reopening — only the tilt angle adjusts, continuously, to the live reading. Covers without tilt don't have this middle state; they simply reopen once obstruction rises far enough.
+- **NONE** — either the gate failed, or (for covers without tilt) obstruction is high enough that protection isn't needed at all.
+
+Before any movement happens — protecting or returning — the automation checks that the cover is idle, isn't currently held in manual override, and that Home Assistant is fully running. Returning to the normal position additionally respects the configured opening schedule and night lock.
+
+To avoid unnecessary movement, commands are only sent when the requested position or tilt differs from the current state.
 
 <p align="center">
 <img src="images/how-it-works.png" width="1000">
 </p>
-
-To avoid unnecessary movement, commands are only sent when the requested position or tilt differs from the current state.
 
 ---
 

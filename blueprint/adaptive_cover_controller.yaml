@@ -2,7 +2,7 @@
 #
 # Adaptive Cover Controller
 #
-# Version          : 2.1.0
+# Version          : 2.2.0
 # Author           : Waleed Gumaa
 # Home Assistant   : 2025.7+
 #
@@ -12,8 +12,8 @@
 # Automatically protects curtains, blinds and shutters from direct sunlight
 # using the sun's position.
 #
-# Optional weather, cloud cover, occupancy and schedule validation modules
-# are available.
+# Optional weather, effective sky obstruction, occupancy and schedule
+# validation modules are available.
 #
 # Create one automation per cover.
 #
@@ -22,7 +22,7 @@
 #
 # - Sun azimuth and elevation protection.
 # - Optional weather validation.
-# - Optional cloud cover validation with hysteresis.
+# - Optional effective sky obstruction validation with hysteresis.
 # - Optional occupancy validation.
 # - Night lock and scheduled morning opening.
 # - Manual override state machine.
@@ -34,14 +34,39 @@
 # Changelog
 # =========
 #
+# 2.2.0
+# - Renamed "Cloud Cover" to "Effective Sky Obstruction" throughout the
+#   UI and documentation. Functionally unchanged, and existing
+#   automations are unaffected — the underlying inputs weren't renamed.
+#   Accepts either a plain cloud-cover-percentage sensor or a more
+#   sophisticated computed obstruction sensor (e.g. an AI sky camera).
+# - Introduced a proper three-tier protection level (FULL / PARTIAL /
+#   NONE) replacing the old boolean should-protect flag. Sun, weather
+#   and occupancy form a single gate; sky obstruction then decides the
+#   level once the gate is open.
+# - Added a configurable manual override timeout: after a set duration
+#   in manual mode, control automatically returns to the automation
+#   regardless of position. Set to 0 to disable.
+# - Fixed a bug where the manual override could clear itself almost
+#   immediately: the "still matches?" check was being compared against
+#   its own overridden-state echo (which trivially always matched),
+#   instead of what the automation would actually want. It's now
+#   computed independently of whether the cover is currently overridden.
+# - Fixed a bug where several boolean variables could render as the
+#   literal text "true"/"false" instead of a real boolean — which,
+#   read back, is always truthy regardless of which branch produced it.
+#   This could silently force incorrect gate/override results,
+#   particularly whenever weather or occupancy validation was disabled.
+#
 # 2.1.0
 # - Covers with tilt now stay down for the whole sun window once closed;
-#   cloud cover no longer forces a full raise while the sun is still in
-#   range (only the sun leaving the azimuth/elevation window does).
+#   sky obstruction no longer forces a full raise while the sun is still
+#   in range (only the sun leaving the azimuth/elevation window does).
 # - Adaptive tilt toggle now only controls the tilt angle (fixed vs.
-#   reacting to live cloud cover) and no longer affects position logic.
+#   reacting to live sky obstruction) and no longer affects position
+#   logic.
 # - Covers without tilt are unaffected and keep the original two-way
-#   cloud hysteresis (close, and re-open early if it gets too cloudy).
+#   hysteresis (close, and re-open early if it gets too obstructed).
 # - Manual override detection now also considers tilt mismatches, not
 #   just position.
 # - Automation no longer misreads a Home Assistant restart / integration
@@ -59,8 +84,8 @@ blueprint:
     Automatically protects curtains, blinds and shutters from direct sunlight
     using the sun's position.
 
-    Optional weather, cloud cover, occupancy and schedule validation modules
-    are available.
+    Optional weather, effective sky obstruction, occupancy and schedule
+    validation modules are available.
 
     Create one automation per cover.
 
@@ -374,25 +399,31 @@ blueprint:
                 - windy
                 - windy-variant
 
-  # CLOUD COVER
+  # EFFECTIVE SKY OBSTRUCTION
 
     cloud_cover:
-      name: Cloud Cover (Optional)
+      name: Effective Sky Obstruction (Optional)
       icon: mdi:weather-cloudy
       collapsed: true
 
       input:
 
         use_cloud_cover:
-          name: Enable cloud cover validation
+          name: Enable sky obstruction validation
           default: false
           selector:
             boolean: {}
 
         cloud_cover_sensor:
-          name: Cloud cover sensor
+          name: Effective sky obstruction sensor
           description: >
-            Select a sensor that reports cloud cover as a percentage (0–100).
+            Select a sensor that reports how obstructed the sun currently is,
+            as a percentage (0–100). A plain cloud cover sensor from a
+            weather integration works fine — but this also accepts a more
+            sophisticated computed sensor, such as an AI sky-camera
+            "average cloud cover"/obstruction reading (e.g. a Lookout-style
+            sensor), if you have one. Anything that reports a live 0–100%
+            obstruction value on this cover's side of the sky is valid.
           default: {}
           selector:
             entity:
@@ -402,7 +433,8 @@ blueprint:
         close_below:
           name: Close below
           description: >
-            Protection becomes active when cloud cover is below this percentage.
+            Protection becomes active when sky obstruction is below this
+            percentage (i.e. the sun is unobstructed enough to matter).
           default: 40
           selector:
             number:
@@ -415,7 +447,9 @@ blueprint:
         open_above:
           name: Open above
           description: >
-            Protection is removed when cloud cover rises above this percentage.
+            Protection is removed when sky obstruction rises above this
+            percentage (i.e. it's cloudy/obstructed enough that sun
+            protection is no longer needed).
           default: 60
           selector:
             number:
@@ -467,7 +501,7 @@ blueprint:
           description: >
             While protecting, continuously adjust the tilt angle between
             Protection tilt and Adaptive tilt position based on the live
-            cloud cover reading, instead of holding a fixed tilt angle.
+            sky obstruction reading, instead of holding a fixed tilt angle.
 
             This only affects the tilt angle. The cover itself still stays
             down for the whole sun window either way.
@@ -478,11 +512,11 @@ blueprint:
         adaptive_tilt_position:
           name: Adaptive tilt position
           description: >
-            The tilt angle used at the cloudiest end of the range (at or
-            above Open above). Protection tilt is used at the sunniest end
-            (at or below Close below), and the tilt is interpolated between
-            the two as cloud cover changes. Only used when Adaptive tilt
-            mode is enabled.
+            The tilt angle used at the most obstructed end of the range
+            (at or above Open above). Protection tilt is used at the
+            least obstructed end (at or below Close below), and the tilt
+            is interpolated between the two as sky obstruction changes.
+            Only used when Adaptive tilt mode is enabled.
           default: 30
           selector:
             number:
@@ -571,7 +605,7 @@ trigger:
     entity_id: !input weather_entity
     id: weather_changed
 
-# CLOUD COVER
+# EFFECTIVE SKY OBSTRUCTION
 
   - trigger: state
     entity_id: !input cloud_cover_sensor
@@ -805,7 +839,7 @@ variables:
 #           down; tilt reacts (or holds Protection tilt, depending on
 #           Adaptive tilt mode).
 #
-# Covers without tilt never produce PARTIAL — cloud cover fully gates
+# Covers without tilt never produce PARTIAL — sky obstruction fully gates
 # them both ways, same as before (close below Close below, re-open
 # above Open above).
 
