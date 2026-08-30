@@ -2,7 +2,7 @@
 #
 # Adaptive Cover Controller
 #
-# Version          : 2.0.0
+# Version          : 2.1.0
 # Author           : Waleed Gumaa
 # Home Assistant   : 2025.7+
 #
@@ -33,6 +33,20 @@
 #
 # Changelog
 # =========
+#
+# 2.1.0
+# - Covers with tilt now stay down for the whole sun window once closed;
+#   cloud cover no longer forces a full raise while the sun is still in
+#   range (only the sun leaving the azimuth/elevation window does).
+# - Adaptive tilt toggle now only controls the tilt angle (fixed vs.
+#   reacting to live cloud cover) and no longer affects position logic.
+# - Covers without tilt are unaffected and keep the original two-way
+#   cloud hysteresis (close, and re-open early if it gets too cloudy).
+# - Manual override detection now also considers tilt mismatches, not
+#   just position.
+# - Automation no longer misreads a Home Assistant restart / integration
+#   reload as a manual move.
+# - Removed unused/dead calculated variable.
 #
 # 2.0.0
 # - Initial public release.
@@ -267,6 +281,22 @@ blueprint:
               filter:
                 - domain: input_select
 
+        manual_override_timeout:
+          name: Manual override timeout (minutes)
+          description: >
+            Automatically hand control back to the automation after this
+            long in manual mode, regardless of position. Set to 0 to
+            disable — manual mode will then only clear once the cover's
+            position/tilt happens to match what the automation wants.
+          default: 120
+          selector:
+            number:
+              min: 0
+              max: 360
+              step: 30
+              unit_of_measurement: minutes
+              mode: slider
+
   # OCCUPANCY
 
     occupancy:
@@ -432,6 +462,36 @@ blueprint:
               unit_of_measurement: "%"
               mode: slider
 
+        adaptive_tilt:
+          name: Adaptive tilt mode
+          description: >
+            While protecting, continuously adjust the tilt angle between
+            Protection tilt and Adaptive tilt position based on the live
+            cloud cover reading, instead of holding a fixed tilt angle.
+
+            This only affects the tilt angle. The cover itself still stays
+            down for the whole sun window either way.
+          default: false
+          selector:
+            boolean: {}
+
+        adaptive_tilt_position:
+          name: Adaptive tilt position
+          description: >
+            The tilt angle used at the cloudiest end of the range (at or
+            above Open above). Protection tilt is used at the sunniest end
+            (at or below Close below), and the tilt is interpolated between
+            the two as cloud cover changes. Only used when Adaptive tilt
+            mode is enabled.
+          default: 30
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 5
+              unit_of_measurement: "%"
+              mode: slider
+
   # ADVANCED
 
     advanced:
@@ -495,6 +555,9 @@ trigger:
   - trigger: state
     entity_id: !input cover
     id: cover_changed
+    not_from:
+      - unavailable
+      - unknown
 
 # PRESENCE
 
@@ -549,11 +612,15 @@ variables:
   cfg_use_tilt: !input use_tilt
   cfg_protection_tilt: !input protection_tilt
   cfg_normal_tilt: !input normal_tilt
+  
+  cfg_adaptive_tilt: !input adaptive_tilt
+  cfg_adaptive_tilt_position: !input adaptive_tilt_position
 
 # MANUAL OVERRIDE
 
   cfg_manual_override: !input enable_manual_override
   cfg_controller_state: !input controller_state_helper
+  cfg_manual_override_timeout: !input manual_override_timeout
 
 # SUN PROTECTION
 
@@ -646,33 +713,37 @@ variables:
 
   calc_weather_ok: >
     {% if not cfg_use_weather %}
-      true
+      {{ true }}
     {% else %}
       {{ ctx_weather in cfg_allowed_conditions }}
     {% endif %}
 
-# CLOUD COVER VALIDATION
+# ADAPTIVE TILT
+#
+# Where the live cloud reading falls between Close below and Open
+# above, expressed as a 0-1 fraction (0 = sunniest, 1 = cloudiest).
+# Used only when Adaptive tilt mode is enabled.
 
-  calc_cloud_allows_protection: >
-    {% if not cfg_use_cloud_cover %}
-
-      true
-
-    {% elif calc_currently_protecting %}
-
-      {{ (ctx_cloud_cover | float) < (cfg_open_above | float) }}
-
+  calc_cloud_fraction: >
+    {% set lo = cfg_close_below | float %}
+    {% set hi = cfg_open_above | float %}
+    {% if hi == lo %}
+      0
     {% else %}
-
-      {{ (ctx_cloud_cover | float) <= (cfg_close_below | float) }}
-
+      {% set raw = ((ctx_cloud_cover | float) - lo) / (hi - lo) %}
+      {{ min(max(raw, 0), 1) }}
     {% endif %}
+
+  calc_adaptive_tilt_value: >
+    {% set lo_tilt = cfg_protection_tilt | float %}
+    {% set hi_tilt = cfg_adaptive_tilt_position | float %}
+    {{ (lo_tilt + (calc_cloud_fraction | float) * (hi_tilt - lo_tilt)) | round(0) | int }}
 
 # OCCUPANCY VALIDATION
 
   calc_someone_home: >
     {% if not cfg_use_occupancy %}
-      true
+      {{ true }}
     {% else %}
       {{
         expand(cfg_people)
@@ -681,6 +752,21 @@ variables:
         | count > 0
       }}
     {% endif %}
+
+# GATE
+#
+# Whether this cover is a candidate for protection at all right now.
+# Cloud cover deliberately isn't part of this — it only decides the
+# protection LEVEL below, once the gate is open.
+
+  calc_gate_ok: >
+    {{
+      calc_sun_ok
+      and
+      calc_weather_ok
+      and
+      calc_someone_home
+    }}
 
 # SCHEDULE
 
@@ -698,7 +784,7 @@ variables:
 
   calc_can_auto_open: >
     {% if calc_open_time == 'disabled' %}
-      false
+      {{ false }}
     {% else %}
       {% set now_time = now() %}
       {% set night = today_at(cfg_night_lock) %}
@@ -708,18 +794,63 @@ variables:
 
     {% endif %}
 
-# PROTECTION DECISION
+# PROTECTION LEVEL
+#
+# NONE    = gate failed (sun out of window, weather, or occupancy) —
+#           fully open.
+# FULL    = gate passed and it's sunny enough (cloud <= Close below) —
+#           protection position, protection tilt.
+# PARTIAL = tilt-only covers, gate passed, cloud has risen above Close
+#           below while the sun is still in the window. Position stays
+#           down; tilt reacts (or holds Protection tilt, depending on
+#           Adaptive tilt mode).
+#
+# Covers without tilt never produce PARTIAL — cloud cover fully gates
+# them both ways, same as before (close below Close below, re-open
+# above Open above).
 
-  calc_should_protect: >
-    {{
-      calc_sun_ok
-      and
-      calc_weather_ok
-      and
-      calc_cloud_allows_protection
-      and
-      calc_someone_home
-    }}
+  result_protection_level: >
+    {% if not calc_gate_ok %}
+
+      NONE
+
+    {% elif not cfg_use_cloud_cover %}
+
+      FULL
+
+    {% elif cfg_use_tilt %}
+
+      {% if calc_currently_protecting %}
+        {% if (ctx_cloud_cover | float) <= (cfg_close_below | float) %}
+          FULL
+        {% else %}
+          PARTIAL
+        {% endif %}
+      {% else %}
+        {% if (ctx_cloud_cover | float) <= (cfg_close_below | float) %}
+          FULL
+        {% else %}
+          NONE
+        {% endif %}
+      {% endif %}
+
+    {% elif calc_currently_protecting %}
+
+      {% if (ctx_cloud_cover | float) < (cfg_open_above | float) %}
+        FULL
+      {% else %}
+        NONE
+      {% endif %}
+
+    {% else %}
+
+      {% if (ctx_cloud_cover | float) <= (cfg_close_below | float) %}
+        FULL
+      {% else %}
+        NONE
+      {% endif %}
+
+    {% endif %}
 
 # CONTROLLER STATE
 
@@ -732,11 +863,29 @@ variables:
   calc_controller_ready: >
     {{ is_state(cfg_controller_state, 'normal') }}
 
+  calc_manual_override_expired: >
+    {% if not cfg_manual_override or (cfg_manual_override_timeout | int(0)) <= 0 %}
+
+      {{ false }}
+
+    {% elif not calc_controller_manual %}
+
+      {{ false }}
+
+    {% else %}
+
+      {% set since = as_timestamp(now()) - as_timestamp(states[cfg_controller_state].last_changed) %}
+      {{ since >= (cfg_manual_override_timeout | int) * 60 }}
+
+    {% endif %}
+
 # MANUAL OVERRIDE
 
   restriction_manual_override: >
     {% if not cfg_manual_override %}
-      false
+      {{ false }}
+    {% elif calc_manual_override_expired %}
+      {{ false }}
     {% else %}
       {{ calc_controller_manual }}
     {% endif %}
@@ -751,7 +900,7 @@ variables:
 #
 # Determines what the controller wants to do.
 #
-# PROTECT   = Move to the protection position.
+# PROTECT   = Move to the protection position (level FULL or PARTIAL).
 # RETURN    = Return to the normal position.
 # OVERRIDDEN = User has taken manual control.
 # IDLE      = No movement required.
@@ -761,7 +910,7 @@ variables:
 
       OVERRIDDEN
 
-    {% elif calc_should_protect %}
+    {% elif result_protection_level != 'NONE' %}
 
       PROTECT
 
@@ -780,28 +929,26 @@ variables:
   result_desired_position: >
     {% if result_state == 'PROTECT' %}
       {{ cfg_protection_position }}
-
     {% elif result_state == 'RETURN' %}
       {{ cfg_normal_position }}
-
     {% else %}
       {{ ctx_cover_position }}
-
     {% endif %}
-
   result_desired_tilt: >
     {% if not cfg_use_tilt %}
       -1
-
-    {% elif result_state == 'PROTECT' %}
-      {{ cfg_protection_tilt }}
-
     {% elif result_state == 'RETURN' %}
       {{ cfg_normal_tilt }}
-
+    {% elif result_state == 'PROTECT' %}
+      {% if result_protection_level == 'FULL' %}
+        {{ cfg_protection_tilt }}
+      {% elif cfg_adaptive_tilt %}
+        {{ calc_adaptive_tilt_value }}
+      {% else %}
+        {{ cfg_protection_tilt }}
+      {% endif %}
     {% else %}
       {{ ctx_cover_tilt }}
-
     {% endif %}
 
 # MOVEMENT DECISION
@@ -824,6 +971,65 @@ variables:
       (result_desired_tilt | int != ctx_cover_tilt | int)
     }}
 
+# STATE MATCH
+#
+# Whether the physical cover currently matches what the automation
+# would want, IGNORING whether it's currently overridden. This has to
+# be computed independently of result_desired_position/result_desired_tilt:
+# those deliberately echo the current position/tilt while OVERRIDDEN
+# (so nothing tries to move it), which makes them useless for deciding
+# whether an override should clear — that comparison would always
+# trivially "match" the moment you're in manual mode, clearing it on
+# the very next cover event regardless of where the cover actually is.
+#
+# calc_would_be_state mirrors result_state's PROTECT/RETURN/IDLE logic
+# but without the manual-override branch, so it reflects what the
+# automation actually wants right now, override or not.
+
+  calc_would_be_state: >
+    {% if result_protection_level != 'NONE' %}
+      PROTECT
+    {% elif cfg_auto_return and calc_can_auto_open %}
+      RETURN
+    {% else %}
+      IDLE
+    {% endif %}
+
+  calc_automatic_position: >
+    {% if calc_would_be_state == 'PROTECT' %}
+      {{ cfg_protection_position }}
+    {% elif calc_would_be_state == 'RETURN' %}
+      {{ cfg_normal_position }}
+    {% else %}
+      {{ ctx_cover_position }}
+    {% endif %}
+
+  calc_automatic_tilt: >
+    {% if not cfg_use_tilt %}
+      -1
+    {% elif calc_would_be_state == 'RETURN' %}
+      {{ cfg_normal_tilt }}
+    {% elif calc_would_be_state == 'PROTECT' %}
+      {% if result_protection_level == 'FULL' %}
+        {{ cfg_protection_tilt }}
+      {% elif cfg_adaptive_tilt %}
+        {{ calc_adaptive_tilt_value }}
+      {% else %}
+        {{ cfg_protection_tilt }}
+      {% endif %}
+    {% else %}
+      {{ ctx_cover_tilt }}
+    {% endif %}
+
+  calc_position_mismatch: >
+    {{ calc_automatic_position | int != ctx_cover_position | int }}
+
+  calc_tilt_mismatch: >
+    {{ cfg_use_tilt and (calc_automatic_tilt | int != ctx_cover_tilt | int) }}
+
+  calc_state_mismatch: >
+    {{ calc_position_mismatch or calc_tilt_mismatch }}
+
 # CONDITIONS
 
 conditions: []
@@ -831,6 +1037,26 @@ conditions: []
 # ACTIONS
 
 actions:
+
+# MANUAL OVERRIDE EXPIRED
+#
+# Time-based, not event-based, so this deliberately runs on any trigger
+# (the periodic recheck is what actually catches it). Doesn't stop —
+# lets the rest of this run act on the now-current protection level.
+
+  - if:
+      - condition: template
+        value_template: >
+          {{ calc_manual_override_expired }}
+
+    then:
+
+      - action: input_select.select_option
+        target:
+          entity_id: !input controller_state_helper
+
+        data:
+          option: normal
 
 # ACTIVATE MANUAL OVERRIDE
 
@@ -852,7 +1078,7 @@ actions:
 
       - condition: template
         value_template: >
-          {{ result_desired_position | int != ctx_cover_position | int }}
+          {{ calc_state_mismatch }}
 
     then:
 
@@ -866,14 +1092,18 @@ actions:
       - stop: Manual override activated.
 
 # CLEAR MANUAL OVERRIDE
+#
+# These two don't move anything, they only reset the tracking helper —
+# so unlike ACTIVATE above, they're safe to check on any trigger, not
+# just cover_changed. Gating them to cover_changed only would leave the
+# override stuck if the desired state happens to catch up to the
+# physical position without the cover itself moving again (e.g. the sun
+# leaves the window while the cover is parked at a position that now
+# happens to match).
 
-  #
-  # Automation movement completed
-  #
+   # Automation movement completed
+
   - if:
-      - condition: trigger
-        id: cover_changed
-
       - condition: template
         value_template: >
           {{ calc_controller_automatic }}
@@ -884,7 +1114,7 @@ actions:
 
       - condition: template
         value_template: >
-          {{ ctx_cover_position | int == result_desired_position | int }}
+          {{ not calc_state_mismatch }}
 
     then:
 
@@ -897,9 +1127,15 @@ actions:
 
       - stop: Automation movement completed.
 
-  #
   # Manual override cleared
   #
+  # Deliberately gated to an actual cover_changed event, not any trigger:
+  # for covers without tilt, the desired position only ever has a
+  # couple of possible values, so an unrelated trigger (cloud, sun,
+  # periodic) can coincidentally match wherever a manual position sits
+  # without the person actually having resolved anything. The timeout
+  # above handles the "never converges" case instead.
+
   - if:
       - condition: trigger
         id: cover_changed
@@ -914,7 +1150,7 @@ actions:
 
       - condition: template
         value_template: >
-          {{ ctx_cover_position | int == result_desired_position | int }}
+          {{ not calc_state_mismatch }}
 
     then:
 
@@ -927,9 +1163,8 @@ actions:
 
       - stop: Manual override cleared.
 
-  #
-  # Ignore remaining cover state updates
-  #
+   # Ignore remaining cover state updates
+
   - if:
       - condition: trigger
         id: cover_changed
@@ -950,6 +1185,29 @@ actions:
     then:
       - stop: Cover already in desired state.
 
+# MARK AS AUTOMATION
+#
+# Runs once for either a position move, a tilt move, or both, so tilt-only
+# moves are tracked the same way as position moves.
+
+  - if:
+      - condition: template
+        value_template: >
+          {{
+            cfg_manual_override
+            and
+            (result_move_cover or result_move_tilt)
+          }}
+
+    then:
+
+      - action: input_select.select_option
+        target:
+          entity_id: !input controller_state_helper
+
+        data:
+          option: automation
+
 # MOVE COVER
 
   - if:
@@ -958,20 +1216,6 @@ actions:
           {{ result_move_cover }}
 
     then:
-
-      - if:
-          - condition: template
-            value_template: >
-              {{ cfg_manual_override }}
-
-        then:
-
-          - action: input_select.select_option
-            target:
-              entity_id: !input controller_state_helper
-
-            data:
-              option: automation
 
       - action: cover.set_cover_position
         target:
